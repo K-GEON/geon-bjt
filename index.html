@@ -68,6 +68,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .list{display:flex;flex-direction:column;gap:10px}
 .card{position:relative;background:var(--surface);border-radius:16px}
 .card.done{background:var(--done-card)}
+.card.compact .card-main{padding:0 60px 0 16px;min-height:52px;flex-direction:row;align-items:center}
+.card.compact .w{font-size:18px;font-weight:500;color:var(--muted)}
+.card.compact .star{top:4px}
 .card-main{width:100%;border:0;background:transparent;text-align:left;padding:16px 60px 16px 16px;display:flex;flex-direction:column;gap:10px}
 .head{display:flex;align-items:center;gap:14px;min-width:0}
 .badge{flex:none;width:44px;height:44px;border-radius:50%;background:var(--badge-bg);color:var(--badge-fg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
@@ -128,7 +131,7 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
 <script>
 (function () {
   'use strict';
-  var APP = { name: 'Geon BJT', version: '1.0' };
+  var APP = { name: 'Geon BJT', version: '1.1' };
 
   var ICONS = {
     home: '<path d="M4 11l8-6.5 8 6.5"/><path d="M6.5 9.5V19h11V9.5"/>',
@@ -219,9 +222,17 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
     return '<div class="detail">' + rel +
       '<button type="button" class="done-btn" aria-pressed="' + done + '">' + (done ? '✓ 학습 완료됨' : '+ 학습 완료') + '</button></div>';
   }
+  function starHtml(m, x) {
+    return '<button type="button" class="star" aria-label="즐겨찾기" aria-pressed="' + !!m.rec.star[x.k] + '">' + STAR + '</button>';
+  }
   function cardHtml(m, x) {
-    var open = m.open === x.i;
-    return '<div class="card' + (m.rec.done[x.k] ? ' done' : '') + '" data-i="' + x.i + '">' +
+    var open = m.open === x.i, done = !!m.rec.done[x.k];
+    if (done && !open) {
+      return '<div class="card done compact" data-i="' + x.i + '">' +
+        '<button type="button" class="card-main" aria-expanded="false" aria-label="' + esc(x.w + ', 학습 완료') + '">' +
+        '<span class="w jp" lang="ja">' + esc(x.w) + '</span></button>' + starHtml(m, x) + '</div>';
+    }
+    return '<div class="card' + (done ? ' done' : '') + '" data-i="' + x.i + '">' +
       '<button type="button" class="card-main" aria-expanded="' + open + '">' +
         '<span class="head"><span class="badge">' + esc(x.lv) + '</span><span class="wr">' +
           '<span class="w jp" lang="ja">' + esc(x.w) + '</span>' +
@@ -229,8 +240,13 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
         '</span></span>' +
         '<span class="m">' + esc(x.m) + '</span>' +
       '</button>' +
-      '<button type="button" class="star" aria-label="즐겨찾기" aria-pressed="' + !!m.rec.star[x.k] + '">' + STAR + '</button>' +
-      (open ? detailHtml(m, x) : '') + '</div>';
+      starHtml(m, x) + (open ? detailHtml(m, x) : '') + '</div>';
+  }
+  function replaceCard(m, i) {
+    var el = main.querySelector('.card[data-i="' + i + '"]');
+    if (!el) return null;
+    el.insertAdjacentHTML('afterend', cardHtml(m, m.words[i]));
+    var n = el.nextElementSibling; el.remove(); return n;
   }
   function renderList(m) {
     var list = main.querySelector('.list'), cnt = main.querySelector('.count');
@@ -348,24 +364,20 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
         if ((b = t.closest('.done-btn'))) {
           if (m.rec.done[x.k]) delete m.rec.done[x.k]; else m.rec.done[x.k] = 1;
           saveRec(m);
-          var on = !!m.rec.done[x.k];
-          card.classList.toggle('done', on);
-          b.setAttribute('aria-pressed', String(on));
-          b.textContent = on ? '✓ 학습 완료됨' : '+ 학습 완료';
+          var nc = replaceCard(m, x.i);
+          if (nc) { var nb = nc.querySelector('.done-btn'); if (nb) nb.focus(); }
           return;
         }
         if (t.closest('.card-main')) {
           var prev = m.open;
-          if (prev !== -1) {
-            var pc = main.querySelector('.card[data-i="' + prev + '"]');
-            if (pc) { var dd = pc.querySelector('.detail'); if (dd) dd.remove(); pc.querySelector('.card-main').setAttribute('aria-expanded', 'false'); }
+          m.open = prev === x.i ? -1 : x.i;
+          if (prev !== -1 && prev !== x.i) replaceCard(m, prev);
+          var cur = replaceCard(m, x.i);
+          if (cur && m.open === x.i) {
+            var r = cur.getBoundingClientRect(), mr = main.getBoundingClientRect();
+            if (r.bottom > mr.bottom) main.scrollTop += r.bottom - mr.bottom + 12;
+            if (r.top < mr.top) main.scrollTop -= mr.top - r.top + 12;
           }
-          if (prev === x.i) { m.open = -1; return; }
-          m.open = x.i;
-          card.insertAdjacentHTML('beforeend', detailHtml(m, x));
-          card.querySelector('.card-main').setAttribute('aria-expanded', 'true');
-          var r = card.getBoundingClientRect(), mr = main.getBoundingClientRect();
-          if (r.bottom > mr.bottom) main.scrollTop += r.bottom - mr.bottom + 12;
           return;
         }
       }
