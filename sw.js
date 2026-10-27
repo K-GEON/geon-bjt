@@ -1,6 +1,6 @@
 /* Geon service worker: 전 파일을 캐시해 오프라인으로 동작한다.
    파일을 바꾸거나 모듈을 추가하면 CACHE 이름(버전)을 올리고 FILES 목록을 갱신한다. */
-var CACHE = 'geon-1.3';
+var CACHE = 'geon-1.4';
 var FILES = [
   './',
   './index.html',
