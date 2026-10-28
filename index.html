@@ -62,8 +62,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .levels{display:grid;gap:8px}
 .chip{height:44px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:10px;font-size:15px;font-weight:700}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-.tags{display:flex;gap:8px}
-.tags .chip{padding:0 14px}
+.tags{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tags .chip{padding:0 6px;font-size:14px;white-space:nowrap}
 .count{font-size:15px;color:var(--muted)}
 
 .list{display:flex;flex-direction:column;gap:10px}
@@ -132,7 +132,7 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
 <script>
 (function () {
   'use strict';
-  var APP = { name: 'Geon BJT', version: '1.4' };
+  var APP = { name: 'Geon BJT', version: '1.5' };
 
   // ---------- 화면 높이 고정 ----------
   function fitHeight() {
@@ -159,6 +159,19 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
+  // ---------- 상태 태그 ----------
+  // 즐겨찾기·미학습·학습 완료는 합집합 필터: 켜진 태그 중 하나라도 해당하면 표시. 기본값은 셋 다 켜짐(전체 표시).
+  var TAGS = [
+    { id: 'star', label: '★ 즐겨찾기' },
+    { id: 'undone', label: '미학습' },
+    { id: 'done', label: '✓ 학습 완료' }
+  ];
+  function normTags(t) {
+    var o = {};
+    TAGS.forEach(function (g) { o[g.id] = !(t && t[g.id] === false); });
+    return o;
+  }
+
   // ---------- 모듈 적재 ----------
   var MODS = (window.GEON_MODULES || []).filter(function (m) {
     return m && m.id && m.name && m.type === 'vocab' && Array.isArray(m.levels) && Array.isArray(m.words);
@@ -173,7 +186,7 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
     var ui = load('geon:' + m.id + ':ui', null) || {};
     if (ui.level && m.levels.indexOf(ui.level) === -1) ui.level = null;
     return { def: m, id: m.id, words: words, rec: rec,
-      ui: { level: ui.level || null, star: !!ui.star, done: !!ui.done }, q: '', open: -1 };
+      ui: { level: ui.level || null, tags: normTags(ui.tags) }, q: '', open: -1 };
   });
   var MOD = {}; MODS.forEach(function (m) { MOD[m.id] = m; });
   function saveRec(m) { save('geon:' + m.id + ':rec', m.rec); }
@@ -222,8 +235,8 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
     var q = m.q.trim().toLowerCase();
     return m.words.filter(function (x) {
       if (m.ui.level && x.lv !== m.ui.level) return false;
-      if (m.ui.star && !m.rec.star[x.k]) return false;
-      if (m.ui.done && !m.rec.done[x.k]) return false;
+      var tg = m.ui.tags, isDone = !!m.rec.done[x.k];
+      if (!((tg.star && m.rec.star[x.k]) || (tg.undone && !isDone) || (tg.done && isDone))) return false;
       if (q && x.hay.indexOf(q) === -1) return false;
       return true;
     });
@@ -269,7 +282,7 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
     cnt.textContent = items.length + '단어';
     list.innerHTML = items.length
       ? items.map(function (x) { return cardHtml(m, x); }).join('')
-      : '<div class="empty">조건에 맞는 단어가 없습니다. 등급이나 태그를 바꿔 보세요.</div>';
+      : '<div class="empty">조건에 맞는 단어가 없습니다. 태그를 하나 이상 켜거나 등급을 바꿔 보세요.</div>';
   }
   function renderVocab(m) {
     var d = m.def;
@@ -281,8 +294,9 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
           return '<button type="button" class="chip" data-level="' + esc(lv) + '" aria-pressed="' + (m.ui.level === lv) + '">' + esc(lv) + '</button>';
         }).join('') + '</div>' +
       '<div class="tags">' +
-        '<button type="button" class="chip" data-tag="star" aria-pressed="' + m.ui.star + '">★ 즐겨찾기</button>' +
-        '<button type="button" class="chip" data-tag="done" aria-pressed="' + m.ui.done + '">✓ 학습 완료</button>' +
+        TAGS.map(function (g) {
+          return '<button type="button" class="chip" data-tag="' + g.id + '" aria-pressed="' + !!m.ui.tags[g.id] + '">' + esc(g.label) + '</button>';
+        }).join('') +
       '</div>' +
       '<div class="count" aria-live="polite"></div>' +
       '<div class="list"></div></div>';
@@ -363,8 +377,8 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
       }
       if ((b = t.closest('[data-tag]'))) {
         var tag = b.getAttribute('data-tag');
-        m.ui[tag] = !m.ui[tag]; saveUi(m); m.open = -1;
-        b.setAttribute('aria-pressed', String(m.ui[tag]));
+        m.ui.tags[tag] = !m.ui.tags[tag]; saveUi(m); m.open = -1;
+        b.setAttribute('aria-pressed', String(m.ui.tags[tag]));
         renderList(m); return;
       }
       var card = t.closest('.card');
@@ -399,7 +413,7 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
 
     if ((b = t.closest('[data-open-mod]'))) {
       var om = MOD[b.getAttribute('data-open-mod')];
-      if (om) { om.ui.level = b.getAttribute('data-open-level'); om.ui.star = false; om.ui.done = false; om.q = ''; om.open = -1; saveUi(om); go(om.id); }
+      if (om) { om.ui.level = b.getAttribute('data-open-level'); om.ui.tags = normTags(null); om.q = ''; om.open = -1; saveUi(om); go(om.id); }
       return;
     }
     if ((b = t.closest('[data-theme-pick]'))) {
