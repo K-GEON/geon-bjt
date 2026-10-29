@@ -20,7 +20,7 @@
   --bg:#f5f5f3; --surface:#ffffff; --ink:#17202c; --muted:#5f6977; --meaning:#1f3555;
   --line:#c9ced6; --track:#e6e8ec; --accent:#3a3f5c; --on-accent:#ffffff;
   --star:#b98418; --gold-text:#8a6110; --badge-bg:#e3eef0; --badge-fg:#17202c;
-  --done-card:#ebecee; --danger:#b23b2e;
+  --done-card:#ebecee; --danger:#b23b2e; --c-done:#2a64a8; --c-left:#8a6110;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
@@ -28,7 +28,7 @@
     --bg:#10151c; --surface:#1a212b; --ink:#e8ecf1; --muted:#a0aab7; --meaning:#c9d6ec;
     --line:#323c4a; --track:#2a3340; --accent:#a9c1ea; --on-accent:#10151c;
     --star:#e3aa45; --gold-text:#e3aa45; --badge-bg:#243246; --badge-fg:#c9d6ec;
-    --done-card:#151b23; --danger:#ef9a8c;
+    --done-card:#151b23; --danger:#ef9a8c; --c-done:#7fb2ee; --c-left:#e3aa45;
     color-scheme:dark;
   }
 }
@@ -36,7 +36,7 @@
   --bg:#10151c; --surface:#1a212b; --ink:#e8ecf1; --muted:#a0aab7; --meaning:#c9d6ec;
   --line:#323c4a; --track:#2a3340; --accent:#a9c1ea; --on-accent:#10151c;
   --star:#e3aa45; --gold-text:#e3aa45; --badge-bg:#243246; --badge-fg:#c9d6ec;
-  --done-card:#151b23; --danger:#ef9a8c;
+  --done-card:#151b23; --danger:#ef9a8c; --c-done:#7fb2ee; --c-left:#e3aa45;
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
@@ -86,7 +86,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .rel{margin:0;font-size:15px;line-height:1.6;color:var(--muted)}
 .rel b{font-weight:500;margin-right:6px}
 .rel .jp{color:var(--ink)}
-.done-btn{align-self:flex-start;height:44px;padding:0 20px;border-radius:22px;border:1px solid var(--line);background:transparent;color:var(--gold-text);font-size:15px;font-weight:700}
+.done-btn{align-self:flex-end;height:44px;padding:0 20px;border-radius:22px;border:1px solid var(--line);background:transparent;color:var(--gold-text);font-size:15px;font-weight:700}
 .done-btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .empty{padding:28px 16px;border-radius:16px;background:var(--surface);text-align:center;color:var(--muted);font-size:15px;line-height:1.6}
 
@@ -98,6 +98,24 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .bar{margin-top:8px;height:8px;border-radius:4px;background:var(--track);overflow:hidden}
 .bar span{display:block;height:100%;background:var(--accent)}
 .rows{padding:4px 0}
+/* 홈 집계: 종합(기본색) / 완료(파랑) / 잔여(주황) */
+.stats{margin-top:14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--bg);border-radius:12px;padding:10px 12px}
+.stat .k{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.stat .k i{width:8px;height:8px;border-radius:2px;background:var(--muted)}
+.stat .v{margin-top:2px;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat.done .v{color:var(--c-done)} .stat.done .k i{background:var(--c-done)}
+.stat.left .v{color:var(--c-left)} .stat.left .k i{background:var(--c-left)}
+.bar.split span{background:var(--c-done)}
+.lvgrid{display:grid;grid-template-columns:minmax(0,1fr) 64px 64px 64px;align-items:center;column-gap:4px}
+.lvhead{padding:10px 16px 2px;font-size:12px;color:var(--muted)}
+.lvhead span,.lvrow .n{text-align:right}
+.lvrow{width:100%;min-height:52px;border:0;background:transparent;text-align:left;padding:8px 16px}
+.lvrow + .lvrow{border-top:1px solid var(--track)}
+.lvrow b{font-size:16px}
+.lvrow .n{font-size:16px;font-variant-numeric:tabular-nums}
+.lvrow .n.done{color:var(--c-done);font-weight:700}
+.lvrow .n.left{color:var(--c-left);font-weight:700}
 .row{width:100%;min-height:52px;border:0;background:transparent;text-align:left;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .row b{font-size:16px}
 .row span{font-size:15px;color:var(--muted)}
@@ -132,7 +150,7 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
 <script>
 (function () {
   'use strict';
-  var APP = { name: 'Geon BJT', version: '1.5' };
+  var APP = { name: 'Geon BJT', version: '1.6' };
 
   // ---------- 화면 높이 고정 ----------
   function fitHeight() {
@@ -315,12 +333,20 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
     MODS.forEach(function (m) {
       var t = stats(m), pct = t.n ? Math.round(t.d / t.n * 100) : 0;
       h += '<div class="panel"><div class="label">모듈</div><div class="pname">' + esc(m.def.name) + '</div>' +
-        '<div class="prow"><span>전체 진행</span><b>' + t.n + '개 중 ' + t.d + '개 완료</b></div>' +
-        '<div class="bar"><span style="width:' + pct + '%"></span></div></div>';
-      h += '<div class="panel rows" style="padding:4px 0">' + m.def.levels.map(function (lv) {
-        var s = stats(m, lv);
-        return '<button type="button" class="row" data-open-mod="' + esc(m.id) + '" data-open-level="' + esc(lv) + '"><b>' + esc(lv) + '</b><span>' + s.n + '개 중 ' + s.d + '개 완료</span></button>';
-      }).join('') + '</div>';
+        '<div class="stats">' +
+          '<div class="stat total"><div class="k"><i></i>종합</div><div class="v">' + t.n + '</div></div>' +
+          '<div class="stat done"><div class="k"><i></i>완료</div><div class="v">' + t.d + '</div></div>' +
+          '<div class="stat left"><div class="k"><i></i>잔여</div><div class="v">' + (t.n - t.d) + '</div></div>' +
+        '</div>' +
+        '<div class="bar split" role="img" aria-label="완료 ' + pct + '%"><span style="width:' + pct + '%"></span></div></div>';
+      h += '<div class="panel rows" style="padding:0 0 4px">' +
+        '<div class="lvgrid lvhead"><span style="text-align:left">등급</span><span>종합</span><span>완료</span><span>잔여</span></div>' +
+        m.def.levels.map(function (lv) {
+          var s = stats(m, lv);
+          return '<button type="button" class="lvgrid lvrow" data-open-mod="' + esc(m.id) + '" data-open-level="' + esc(lv) + '"' +
+            ' aria-label="' + esc(lv + ', 종합 ' + s.n + ', 완료 ' + s.d + ', 잔여 ' + (s.n - s.d)) + '">' +
+            '<b>' + esc(lv) + '</b><span class="n">' + s.n + '</span><span class="n done">' + s.d + '</span><span class="n left">' + (s.n - s.d) + '</span></button>';
+        }).join('') + '</div>';
     });
     main.innerHTML = h + '</div>';
   }
